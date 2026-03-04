@@ -1,0 +1,24 @@
+{
+  "workbench.colorCustomizations": {
+    "titleBar.activeBackground": "#0A1628",
+    "titleBar.activeForeground": "#1976D2",
+    "titleBar.inactiveBackground": "#070F1E",
+    "activityBar.background": "#0A1628",
+    "activityBar.foreground": "#1976D2",
+    "statusBar.background": "#E2231A",
+    "statusBar.foreground": "#FFFFFF",
+    "sideBar.background": "#070F1E",
+    "editorGroupHeader.tabsBackground": "#0A1628",
+    "tab.activeBackground": "#0F1E35",
+    "tab.inactiveBackground": "#070F1E"
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/build": true,
+    "**/dist": true,
+    "**/node_modules": true
+  }
+}
