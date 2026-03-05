@@ -54,5 +54,15 @@
         "lsp":  "smart-revision-update.rev-0008.lsp",
         "latestExe":  "DwgAutoPrinter.App.exe",
         "latestLsp":  "smart-revision-update.lsp"
+    },
+    {
+        "revision":  "0009",
+        "timestamp":  "2026-03-05T15:16:12",
+        "runtime":  "win-x64",
+        "configuration":  "Release",
+        "exe":  "DwgAutoPrinter.App.rev-0009.exe",
+        "lsp":  "smart-revision-update.rev-0009.lsp",
+        "latestExe":  "DwgAutoPrinter.App.exe",
+        "latestLsp":  "smart-revision-update.lsp"
     }
 ]

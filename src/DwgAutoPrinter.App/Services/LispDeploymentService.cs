@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Principal;
 using DwgAutoPrinter.App.Models;
 
 namespace DwgAutoPrinter.App.Services;
@@ -16,9 +17,18 @@ public sealed class LispDeploymentService
 
         var targetDirectories = DiscoverTargetDirectories();
         var copiedFiles = new List<string>();
+        var programFilesRoot = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        var isAdmin = IsRunningAsAdministrator();
+        var skippedProgramFiles = 0;
 
         foreach (var directory in targetDirectories)
         {
+            if (!isAdmin && directory.StartsWith(programFilesRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                skippedProgramFiles++;
+                continue;
+            }
+
             var destination = Path.Combine(directory, "smart-revision-update.lsp");
             try
             {
@@ -37,7 +47,7 @@ public sealed class LispDeploymentService
                 log(new LogEntry
                 {
                     Timestamp = DateTime.Now,
-                    Level = LogLevel.Error,
+                    Level = LogLevel.Warning,
                     Message = $"Permission denied copying to {destination}: {ex.Message}"
                 });
             }
@@ -52,6 +62,16 @@ public sealed class LispDeploymentService
             }
         }
 
+        if (skippedProgramFiles > 0)
+        {
+            log(new LogEntry
+            {
+                Timestamp = DateTime.Now,
+                Level = LogLevel.Warning,
+                Message = $"Skipped {skippedProgramFiles} Program Files target(s). Run as Administrator to deploy there."
+            });
+        }
+
         if (copiedFiles.Count == 0)
         {
             log(new LogEntry
@@ -63,6 +83,13 @@ public sealed class LispDeploymentService
         }
 
         return copiedFiles;
+    }
+
+    private static bool IsRunningAsAdministrator()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        var principal = new WindowsPrincipal(identity);
+        return principal.IsInRole(WindowsBuiltInRole.Administrator);
     }
 
     private static IEnumerable<string> DiscoverTargetDirectories()

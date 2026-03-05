@@ -74,13 +74,21 @@ public sealed class AutoCadBatchService
 
     private void ExecuteOnStaThread(RunOptions options, Action<LogEntry> log, CancellationToken cancellationToken)
     {
+        log(Info("Preflight: validating options."));
         ValidateOptions(options);
+        log(Info("Preflight: options valid."));
 
         var copiedTargets = _lispDeploymentService.CopyToAutoCadLocations(options.LispSourcePath, log);
         if (copiedTargets.Count > 0)
         {
             log(Info($"LISP deployment completed. Updated {copiedTargets.Count} target location(s)."));
         }
+        else
+        {
+            log(Info("LISP deployment did not find writable targets. Will fallback to bundled path if needed."));
+        }
+
+        var lispLoadPath = SelectLispLoadPath(options.LispSourcePath, copiedTargets, log);
 
         var dwgFiles = Directory.GetFiles(options.FolderPath, "*.dwg", SearchOption.TopDirectoryOnly)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -98,7 +106,8 @@ public sealed class AutoCadBatchService
         EnsureActiveDocument();
 
         WaitForIdle(TimeSpan.FromMinutes(2), "AutoCAD startup", cancellationToken);
-        LoadLisp(options.LispSourcePath, cancellationToken, log);
+        EnsureTrustedPathForLisp(lispLoadPath, cancellationToken, log);
+        LoadLisp(lispLoadPath, cancellationToken, log);
 
         var total = dwgFiles.Count;
         var batchSize = Math.Max(1, options.BatchSize);
@@ -186,9 +195,27 @@ public sealed class AutoCadBatchService
     private void LoadLisp(string lispPath, CancellationToken cancellationToken, Action<LogEntry> log)
     {
         var escaped = EscapeLispString(ToLispPath(lispPath));
+        log(Info($"Loading LISP from {lispPath}"));
         SendToActiveDoc($"(load \"{escaped}\")");
         WaitForIdle(TimeSpan.FromMinutes(1), "LISP load", cancellationToken);
         log(Info($"Loaded LISP from {lispPath}"));
+    }
+
+    private void EnsureTrustedPathForLisp(string lispPath, CancellationToken cancellationToken, Action<LogEntry> log)
+    {
+        var directory = Path.GetDirectoryName(lispPath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            return;
+        }
+
+        var lispDir = EscapeLispString(ToLispPath(directory));
+        var expr =
+            $"(if (not (vl-string-search \"{lispDir}\" (getvar \"TRUSTEDPATHS\"))) (setvar \"TRUSTEDPATHS\" (strcat (getvar \"TRUSTEDPATHS\") \";{lispDir}\")))";
+
+        SendToActiveDoc(expr);
+        WaitForIdle(TimeSpan.FromSeconds(20), "Update TRUSTEDPATHS", cancellationToken);
+        log(Info($"Trusted path ensured for LISP: {directory}"));
     }
 
     private void ProcessGroup(
@@ -349,6 +376,23 @@ public sealed class AutoCadBatchService
     private static string ToLispPath(string inputPath)
     {
         return Path.GetFullPath(inputPath).Replace('\\', '/');
+    }
+
+    private static string SelectLispLoadPath(string bundledPath, IReadOnlyList<string> copiedTargets, Action<LogEntry> log)
+    {
+        if (copiedTargets.Count == 0)
+        {
+            log(Info("Preflight: using bundled LISP path."));
+            return bundledPath;
+        }
+
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var preferred = copiedTargets
+            .FirstOrDefault(path => path.StartsWith(appData, StringComparison.OrdinalIgnoreCase));
+
+        var selected = preferred ?? copiedTargets[0];
+        log(Info($"Preflight: selected deployed LISP for load: {selected}"));
+        return selected;
     }
 
     private static LogEntry Info(string message) => new()

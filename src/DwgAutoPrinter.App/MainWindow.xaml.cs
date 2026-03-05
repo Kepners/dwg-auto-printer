@@ -26,6 +26,7 @@ public partial class MainWindow : Window
         DataContext = this;
         FolderPathTextBox.Text = Environment.CurrentDirectory;
         DescriptionTextBox.Text = "Construction Issue";
+        BatchSizeTextBox.Text = "3";
         AlwaysOnTopCheckBox.IsChecked = true;
         Topmost = true;
     }
@@ -45,17 +46,6 @@ public partial class MainWindow : Window
         {
             FolderPathTextBox.Text = dialog.SelectedPath;
         }
-    }
-
-    private void RevisionModeComboBox_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (ExactRevisionTextBox is null)
-        {
-            return;
-        }
-
-        var mode = GetRevisionMode();
-        ExactRevisionTextBox.IsEnabled = string.Equals(mode, "EXACT", StringComparison.OrdinalIgnoreCase);
     }
 
     private void AlwaysOnTopCheckBox_OnChanged(object sender, RoutedEventArgs e)
@@ -173,18 +163,10 @@ public partial class MainWindow : Window
             throw new DirectoryNotFoundException($"Folder not found: {folder}");
         }
 
-        var batchText = (BatchSizeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "5";
+        var batchText = BatchSizeTextBox.Text.Trim();
         if (!int.TryParse(batchText, out var batchSize) || batchSize < 1)
         {
-            batchSize = 5;
-        }
-
-        var mode = GetRevisionMode();
-        var exactRevision = ExactRevisionTextBox.Text.Trim();
-        if (string.Equals(mode, "EXACT", StringComparison.OrdinalIgnoreCase) &&
-            string.IsNullOrWhiteSpace(exactRevision))
-        {
-            throw new InvalidOperationException("Exact revision value is required when revision mode is EXACT.");
+            batchSize = 3;
         }
 
         if (!int.TryParse(TimeoutMinutesTextBox.Text.Trim(), out var timeoutMinutes) || timeoutMinutes < 1)
@@ -196,19 +178,14 @@ public partial class MainWindow : Window
         {
             FolderPath = folder,
             BatchSize = batchSize,
-            RevisionMode = mode,
-            ExactRevision = exactRevision,
+            RevisionMode = "NEXT",
+            ExactRevision = string.Empty,
             Description = DescriptionTextBox.Text.Trim(),
             CloseAfterProcess = CloseAfterCheckBox.IsChecked == true,
             AutoCadVisible = AutoCadVisibleCheckBox.IsChecked == true,
             TimeoutMinutes = timeoutMinutes,
             LispSourcePath = ResolveBundledLispPath()
         };
-    }
-
-    private string GetRevisionMode()
-    {
-        return (RevisionModeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString()?.Trim().ToUpperInvariant() ?? "NEXT";
     }
 
     private string ResolveBundledLispPath()
