@@ -1,0 +1,38 @@
+﻿[
+    {
+        "revision":  "0003",
+        "timestamp":  "2026-03-05T13:39:23",
+        "runtime":  "win-x64",
+        "configuration":  "Release",
+        "releaseFolder":  "rev-0003_20260305-133923",
+        "exe":  "rev-0003_20260305-133923/DwgAutoPrinter.Cli.exe",
+        "lsp":  "rev-0003_20260305-133923/smart-revision-update.lsp"
+    },
+    {
+        "revision":  "0004",
+        "timestamp":  "2026-03-05T13:39:52",
+        "runtime":  "win-x64",
+        "configuration":  "Release",
+        "releaseFolder":  "rev-0004_20260305-133951",
+        "exe":  "rev-0004_20260305-133951/DwgAutoPrinter.Cli.exe",
+        "lsp":  "rev-0004_20260305-133951/smart-revision-update.lsp"
+    },
+    {
+        "revision":  "0005",
+        "timestamp":  "2026-03-05T13:44:59",
+        "runtime":  "win-x64",
+        "configuration":  "Release",
+        "releaseFolder":  "rev-0005_20260305-134457",
+        "exe":  "rev-0005_20260305-134457/DwgAutoPrinter.App.exe",
+        "lsp":  "rev-0005_20260305-134457/smart-revision-update.lsp"
+    },
+    {
+        "revision":  "0006",
+        "timestamp":  "2026-03-05T13:48:48",
+        "runtime":  "win-x64",
+        "configuration":  "Release",
+        "releaseFolder":  "rev-0006",
+        "exe":  "rev-0006/DwgAutoPrinter.App.exe",
+        "lsp":  "rev-0006/smart-revision-update.lsp"
+    }
+]
