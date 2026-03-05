@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using DwgAutoPrinter.App.Models;
@@ -22,6 +23,7 @@ public sealed class AutoCadBatchService
         {
             try
             {
+                using var _ = ComMessageFilter.Register();
                 ExecuteOnStaThread(options, log, cancellationToken);
                 tcs.TrySetResult(null);
             }
@@ -89,6 +91,11 @@ public sealed class AutoCadBatchService
         }
 
         var lispLoadPath = SelectLispLoadPath(options.LispSourcePath, copiedTargets, log);
+        var lispFingerprint = TryGetFileFingerprint(lispLoadPath);
+        if (!string.IsNullOrWhiteSpace(lispFingerprint))
+        {
+            log(Info($"LISP fingerprint: {lispFingerprint}"));
+        }
 
         var dwgFiles = Directory.GetFiles(options.FolderPath, "*.dwg", SearchOption.TopDirectoryOnly)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -238,7 +245,8 @@ public sealed class AutoCadBatchService
             {
                 var layouts = GetPaperSpaceLayouts(doc, log);
                 var paperSpaceCount = layouts.Count;
-                log(Info($"{doc.Name}: detected {paperSpaceCount} paper space layout(s)."));
+                var docName = TryGetDocumentName(doc);
+                log(Info($"{docName}: detected {paperSpaceCount} paper space layout(s)."));
 
                 if (paperSpaceCount > 3)
                 {
@@ -248,7 +256,7 @@ public sealed class AutoCadBatchService
                         openedDocs.Clear();
                     }
 
-                    log(Info($"Single-DWG mode: {doc.Name} has {paperSpaceCount} paper space layouts (>3)."));
+                    log(Info($"Single-DWG mode: {docName} has {paperSpaceCount} paper space layouts (>3)."));
                     ProcessDocument(doc, layouts, options, log, cancellationToken);
                     if (options.CloseAfterProcess)
                     {
@@ -326,7 +334,8 @@ public sealed class AutoCadBatchService
         }
         catch (Exception ex)
         {
-            log(Error($"Layout index enumeration failed for {doc.Name}: {ex.Message}"));
+            var docName = TryGetDocumentName(doc);
+            log(Error($"Layout index enumeration failed for {docName}: {ex.Message}"));
         }
 
         if (names.Count > 0)
@@ -350,7 +359,8 @@ public sealed class AutoCadBatchService
         }
         catch (Exception ex)
         {
-            log(Error($"Layout fallback enumeration failed for {doc.Name}: {ex.Message}"));
+            var docName = TryGetDocumentName(doc);
+            log(Error($"Layout fallback enumeration failed for {docName}: {ex.Message}"));
         }
 
         return names
@@ -388,7 +398,7 @@ public sealed class AutoCadBatchService
         Action<LogEntry> log,
         CancellationToken cancellationToken)
     {
-        string drawingName = doc.Name;
+        string drawingName = TryGetDocumentName(doc);
 
         try
         {
@@ -430,9 +440,9 @@ public sealed class AutoCadBatchService
         Action<LogEntry> log,
         CancellationToken cancellationToken)
     {
-        string drawingName = doc.Name;
+        string drawingName = TryGetDocumentName(doc);
         string drawingStem = Path.GetFileNameWithoutExtension(drawingName);
-        string fullName = Convert.ToString(doc.FullName) ?? string.Empty;
+        string fullName = TryGetDocumentFullName(doc);
         string outputFolder = string.IsNullOrWhiteSpace(fullName)
             ? options.FolderPath
             : (Path.GetDirectoryName(fullName) ?? options.FolderPath);
@@ -657,7 +667,7 @@ public sealed class AutoCadBatchService
 
     private void TryClose(dynamic doc, Action<LogEntry> log, CancellationToken cancellationToken)
     {
-        var name = (string)doc.Name;
+        var name = TryGetDocumentName(doc);
         try
         {
             doc.Close(true);
@@ -716,6 +726,31 @@ public sealed class AutoCadBatchService
         _activeDoc.SendCommand(command + "\n");
     }
 
+    private static string TryGetDocumentName(dynamic doc)
+    {
+        try
+        {
+            var name = Convert.ToString(doc.Name);
+            return string.IsNullOrWhiteSpace(name) ? "<unknown.dwg>" : name;
+        }
+        catch
+        {
+            return "<unknown.dwg>";
+        }
+    }
+
+    private static string TryGetDocumentFullName(dynamic doc)
+    {
+        try
+        {
+            return Convert.ToString(doc.FullName) ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
     private static string EscapeLispString(string value)
     {
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
@@ -728,19 +763,30 @@ public sealed class AutoCadBatchService
 
     private static string SelectLispLoadPath(string bundledPath, IReadOnlyList<string> copiedTargets, Action<LogEntry> log)
     {
-        if (copiedTargets.Count == 0)
+        _ = copiedTargets;
+        log(Info($"Preflight: EXE-controlled mode; loading bundled LISP: {bundledPath}"));
+        return bundledPath;
+    }
+
+    private static string TryGetFileFingerprint(string path)
+    {
+        try
         {
-            log(Info("Preflight: using bundled LISP path."));
-            return bundledPath;
+            if (!File.Exists(path))
+            {
+                return string.Empty;
+            }
+
+            using var stream = File.OpenRead(path);
+            using var sha = SHA256.Create();
+            var hash = sha.ComputeHash(stream);
+            var shortHash = Convert.ToHexString(hash)[..12];
+            return $"{shortHash} ({path})";
         }
-
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var preferred = copiedTargets
-            .FirstOrDefault(path => path.StartsWith(appData, StringComparison.OrdinalIgnoreCase));
-
-        var selected = preferred ?? copiedTargets[0];
-        log(Info($"Preflight: selected deployed LISP for load: {selected}"));
-        return selected;
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     private static LogEntry Info(string message) => new()
