@@ -1,0 +1,14 @@
+﻿{
+    "scan_scope":  "recursive from root folder",
+    "revision_rule":  "filename revision + modified date fallback",
+    "revision_pattern":  "_R##",
+    "update_all_layouts":  true,
+    "include_model_space":  true,
+    "pdf_output":  "./PDF",
+    "pdf_naming":  "\u003cdwg number\u003e\u003crev\u003e.pdf",
+    "plot_defaults":  "DWG to PDF - every autocad has this.",
+    "error_policy":  "retry then continue - then LOG  in a user friend list in the UI",
+    "portable_runtime":  "no preference",
+    "target_autocad":  "2022-2026",
+    "captured_at":  "2026-03-05T09:28:20"
+}

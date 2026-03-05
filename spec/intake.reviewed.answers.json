@@ -1,0 +1,21 @@
+﻿{
+    "scan_scope":  "recursive from root folder",
+    "revision_rule":  "TItle block within the dwg is the only way to find out the revision. Some drawings have an excel sheet that lists all the drawings and the latest revisions. but this isnt all of them and should be used. its a very specific file. Use title block in paper space",
+    "revision_pattern":  "_REV##",
+    "update_all_layouts":  true,
+    "include_model_space":  false,
+    "pdf_output":  "./PDF",
+    "pdf_naming":  "\u003cdwg number\u003e\u003crev\u003e.pdf",
+    "plot_defaults":  "DWG to PDF - every autocad has this.",
+    "error_policy":  "retry then continue - then LOG  in a user friend list in the UI",
+    "portable_runtime":  "no preference",
+    "target_autocad":  "2022-2026",
+    "pdf_only":  false,
+    "recursive_subfolders":  false,
+    "revision_precedence":  "Title block",
+    "skip_if_pdf_exists":  false,
+    "autocad_launch_mode":  "reuse running instance",
+    "ui_mode":  "minimal one-window - best i guess would be to work from within autocad.",
+    "max_retry":  "2 - claudecode create LISP for autocad. you should review the autocad local folder and review the none standard lisp one of them does revisions!",
+    "reviewed_at":  "2026-03-05T09:51:24"
+}

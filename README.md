@@ -25,3 +25,18 @@ Deep Navy `#0A1628` + Engineering Blue `#1565C0` + AutoCAD Red `#E2231A`
 ---
 
 *Target: Windows desktop utility for engineers*
+
+---
+
+## Dist Releases
+Issue builds are created in `dist` and each run keeps a new revision folder.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\publish-dist.ps1
+```
+
+Release index:
+- `dist/index.json`
+
+Latest issued UI app:
+- `dist/rev-XXXX_YYYYMMDD-HHMMSS/DwgAutoPrinter.App.exe`

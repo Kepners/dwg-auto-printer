@@ -1,0 +1,7 @@
+﻿{
+    "scan_behavior":  "root-only",
+    "output_mode":  "pdf",
+    "max_retry_count":  "2",
+    "revision_excel_source":  "No it will be contained within paper space in a dwg file.",
+    "captured_at":  "2026-03-05T09:52:50"
+}

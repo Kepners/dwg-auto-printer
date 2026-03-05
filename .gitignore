@@ -29,3 +29,7 @@ desktop.ini
 *.dwl
 *.dwl2
 *.sv$
+
+# .NET
+**/bin/
+**/obj/

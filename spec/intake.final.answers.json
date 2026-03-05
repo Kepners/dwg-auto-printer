@@ -1,0 +1,10 @@
+﻿{
+    "pdf_only":  true,
+    "recursive_subfolders":  true,
+    "revision_precedence":  "Title block",
+    "skip_if_pdf_exists":  true,
+    "autocad_launch_mode":  "reuse running instance",
+    "ui_mode":  "minimal one-window - best i guess would be to work from within autocad.",
+    "max_retry":  "2 - claudecode create LISP for autocad. you should review the autocad local folder and review the none standard lisp one of them does revisions!",
+    "captured_at":  "2026-03-05T09:32:19"
+}
