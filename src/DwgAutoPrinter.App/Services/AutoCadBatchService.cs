@@ -100,6 +100,10 @@ public sealed class AutoCadBatchService
         }
 
         log(Info($"Found {dwgFiles.Count} DWG file(s)."));
+        if (string.Equals(options.RevisionMode, "NEXT", StringComparison.OrdinalIgnoreCase))
+        {
+            log(Info("Revision mode NEXT: each drawing reads current revision and increments it before PDF plotting."));
+        }
 
         _acad = ConnectOrLaunch(log);
         _acad.Visible = options.AutoCadVisible;
@@ -224,7 +228,7 @@ public sealed class AutoCadBatchService
         Action<LogEntry> log,
         CancellationToken cancellationToken)
     {
-        var openedDocs = new List<dynamic>();
+        var openedDocs = new List<OpenedDocument>();
 
         foreach (var path in group)
         {
@@ -232,7 +236,9 @@ public sealed class AutoCadBatchService
             var doc = TryOpen(path, log, cancellationToken);
             if (doc is not null)
             {
-                var paperSpaceCount = GetPaperSpaceLayoutCount(doc);
+                var layouts = GetPaperSpaceLayouts(doc, log);
+                var paperSpaceCount = layouts.Count;
+                log(Info($"{doc.Name}: detected {paperSpaceCount} paper space layout(s)."));
 
                 if (paperSpaceCount > 3)
                 {
@@ -243,7 +249,7 @@ public sealed class AutoCadBatchService
                     }
 
                     log(Info($"Single-DWG mode: {doc.Name} has {paperSpaceCount} paper space layouts (>3)."));
-                    ProcessDocument(doc, options, log, cancellationToken);
+                    ProcessDocument(doc, layouts, options, log, cancellationToken);
                     if (options.CloseAfterProcess)
                     {
                         TryClose(doc, log, cancellationToken);
@@ -251,7 +257,7 @@ public sealed class AutoCadBatchService
                 }
                 else
                 {
-                    openedDocs.Add(doc);
+                    openedDocs.Add(new OpenedDocument(doc, layouts));
                     if (openedDocs.Count >= options.BatchSize)
                     {
                         ProcessLoadedDocs(openedDocs, options, log, cancellationToken);
@@ -265,23 +271,23 @@ public sealed class AutoCadBatchService
     }
 
     private void ProcessLoadedDocs(
-        List<dynamic> openedDocs,
+        List<OpenedDocument> openedDocs,
         RunOptions options,
         Action<LogEntry> log,
         CancellationToken cancellationToken)
     {
-        foreach (dynamic doc in openedDocs)
+        foreach (var opened in openedDocs)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ProcessDocument(doc, options, log, cancellationToken);
+            ProcessDocument(opened.Document, opened.PaperSpaceLayouts, options, log, cancellationToken);
         }
 
         if (options.CloseAfterProcess)
         {
-            foreach (dynamic doc in openedDocs)
+            foreach (var opened in openedDocs)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                TryClose(doc, log, cancellationToken);
+                TryClose(opened.Document, log, cancellationToken);
             }
         }
     }
@@ -304,30 +310,80 @@ public sealed class AutoCadBatchService
         }
     }
 
-    private int GetPaperSpaceLayoutCount(dynamic doc)
+    private IReadOnlyList<string> GetPaperSpaceLayouts(dynamic doc, Action<LogEntry> log)
+    {
+        var names = new List<string>();
+
+        try
+        {
+            dynamic layouts = doc.Layouts;
+            int total = layouts.Count;
+            if (!TryCollectLayoutNamesByIndex(layouts, total, 0, names))
+            {
+                names.Clear();
+                TryCollectLayoutNamesByIndex(layouts, total, 1, names);
+            }
+        }
+        catch (Exception ex)
+        {
+            log(Error($"Layout index enumeration failed for {doc.Name}: {ex.Message}"));
+        }
+
+        if (names.Count > 0)
+        {
+            return names
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        try
+        {
+            foreach (dynamic layout in doc.Layouts)
+            {
+                string name = Convert.ToString(layout.Name) ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(name) &&
+                    !string.Equals(name, "Model", StringComparison.OrdinalIgnoreCase))
+                {
+                    names.Add(name);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            log(Error($"Layout fallback enumeration failed for {doc.Name}: {ex.Message}"));
+        }
+
+        return names
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static bool TryCollectLayoutNamesByIndex(dynamic layouts, int total, int startIndex, List<string> names)
     {
         try
         {
-            int count = 0;
-            foreach (dynamic layout in doc.Layouts)
+            for (var i = 0; i < total; i++)
             {
-                string name = (string)layout.Name;
-                if (!string.Equals(name, "Model", StringComparison.OrdinalIgnoreCase))
+                dynamic layout = layouts.Item(i + startIndex);
+                string name = Convert.ToString(layout.Name) ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(name) &&
+                    !string.Equals(name, "Model", StringComparison.OrdinalIgnoreCase))
                 {
-                    count++;
+                    names.Add(name);
                 }
             }
 
-            return count;
+            return true;
         }
         catch
         {
-            return 0;
+            return false;
         }
     }
 
     private void ProcessDocument(
         dynamic doc,
+        IReadOnlyList<string> paperSpaceLayouts,
         RunOptions options,
         Action<LogEntry> log,
         CancellationToken cancellationToken)
@@ -341,11 +397,15 @@ public sealed class AutoCadBatchService
             WaitForIdle(TimeSpan.FromMinutes(1), $"Activate {drawingName}", cancellationToken);
 
             var cmd = BuildExeRunCommand(options);
+            log(Info($"AutoCAD command -> {cmd}"));
             SendToActiveDoc(cmd);
             WaitForIdle(TimeSpan.FromMinutes(options.TimeoutMinutes), $"Revision run {drawingName}", cancellationToken);
 
             doc.Save();
             WaitForIdle(TimeSpan.FromMinutes(1), $"Save {drawingName}", cancellationToken);
+
+            PlotPaperSpaceLayoutsToPdf(doc, paperSpaceLayouts, options, log, cancellationToken);
+
             log(new LogEntry
             {
                 Timestamp = DateTime.Now,
@@ -360,6 +420,238 @@ public sealed class AutoCadBatchService
         catch (Exception ex)
         {
             log(Error($"Processing failed for {drawingName}: {ex.Message}"));
+        }
+    }
+
+    private void PlotPaperSpaceLayoutsToPdf(
+        dynamic doc,
+        IReadOnlyList<string> paperSpaceLayouts,
+        RunOptions options,
+        Action<LogEntry> log,
+        CancellationToken cancellationToken)
+    {
+        string drawingName = doc.Name;
+        string drawingStem = Path.GetFileNameWithoutExtension(drawingName);
+        string fullName = Convert.ToString(doc.FullName) ?? string.Empty;
+        string outputFolder = string.IsNullOrWhiteSpace(fullName)
+            ? options.FolderPath
+            : (Path.GetDirectoryName(fullName) ?? options.FolderPath);
+        var layouts = paperSpaceLayouts.Count > 0
+            ? paperSpaceLayouts
+            : GetPaperSpaceLayouts(doc, log);
+        var originalLayoutName = TryGetActiveLayoutName(doc);
+        var originalBackgroundPlot = TryGetVariableInt(doc, "BACKGROUNDPLOT");
+
+        try
+        {
+            if (layouts.Count == 0)
+            {
+                log(Error($"No paper space layouts found for plotting in {drawingName}."));
+                return;
+            }
+
+            try
+            {
+                doc.Activate();
+                _activeDoc = doc;
+                WaitForIdle(TimeSpan.FromMinutes(1), $"Activate for plot {drawingName}", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                log(Error($"Failed to activate {drawingName} before plotting: {ex.Message}"));
+            }
+
+            SetVariableIfPossible(doc, "BACKGROUNDPLOT", 0, log);
+
+            foreach (var layoutName in layouts)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                ActivateLayout(doc, layoutName, cancellationToken, log);
+
+                var safeLayout = SanitizeFileName(layoutName);
+                var outputPath = Path.Combine(outputFolder, $"{drawingStem}-{safeLayout}.pdf");
+                if (File.Exists(outputPath))
+                {
+                    File.Delete(outputPath);
+                }
+
+                log(Info($"Plotting {drawingName} [{layoutName}] -> {outputPath}"));
+
+                dynamic plot = doc.Plot;
+                try
+                {
+                    plot.QuietErrorMode = true;
+                }
+                catch
+                {
+                    // Optional COM property.
+                }
+
+                try
+                {
+                    doc.Regen(1);
+                }
+                catch
+                {
+                    // Best-effort, not fatal.
+                }
+
+                var layoutsToPlot = new[] { layoutName };
+                try
+                {
+                    plot.SetLayoutsToPlot(layoutsToPlot);
+                }
+                catch
+                {
+                    // Active-layout fallback still works if SetLayoutsToPlot is unavailable.
+                }
+
+                bool plotAccepted = true;
+                var plotResult = plot.PlotToFile(outputPath);
+                if (plotResult is bool boolResult)
+                {
+                    plotAccepted = boolResult;
+                }
+                else
+                {
+                    string resultText = Convert.ToString(plotResult) ?? string.Empty;
+                    if (bool.TryParse(resultText, out bool parsed))
+                    {
+                        plotAccepted = parsed;
+                    }
+                }
+
+                WaitForIdle(TimeSpan.FromMinutes(2), $"Plot {drawingName} [{layoutName}]", cancellationToken);
+
+                if (plotAccepted && File.Exists(outputPath))
+                {
+                    log(new LogEntry
+                    {
+                        Timestamp = DateTime.Now,
+                        Level = LogLevel.Success,
+                        Message = $"PDF created: {Path.GetFileName(outputPath)}"
+                    });
+                }
+                else
+                {
+                    log(Error($"Plot failed for {drawingName} [{layoutName}] (accepted={plotAccepted}, file={File.Exists(outputPath)})."));
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            log(Error($"PDF plotting failed for {drawingName}: {ex.Message}"));
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(originalLayoutName))
+            {
+                try
+                {
+                    ActivateLayout(doc, originalLayoutName, cancellationToken, log);
+                }
+                catch
+                {
+                    // best-effort cleanup only
+                }
+            }
+
+            if (originalBackgroundPlot.HasValue)
+            {
+                SetVariableIfPossible(doc, "BACKGROUNDPLOT", originalBackgroundPlot.Value, log);
+            }
+        }
+    }
+
+    private void ActivateLayout(dynamic doc, string layoutName, CancellationToken cancellationToken, Action<LogEntry> log)
+    {
+        try
+        {
+            dynamic layouts = doc.Layouts;
+            dynamic layout = layouts.Item(layoutName);
+            doc.ActiveLayout = layout;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                doc.SetVariable("CTAB", layoutName);
+            }
+            catch
+            {
+                log(Error($"Failed to activate layout {layoutName}: {ex.Message}"));
+                throw;
+            }
+        }
+
+        WaitForIdle(TimeSpan.FromSeconds(30), $"Activate layout {layoutName}", cancellationToken);
+    }
+
+    private static string SanitizeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var chars = value.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (invalid.Contains(chars[i]))
+            {
+                chars[i] = '-';
+            }
+        }
+
+        var sanitized = new string(chars).Trim();
+        return string.IsNullOrWhiteSpace(sanitized) ? "Layout" : sanitized;
+    }
+
+    private static string? TryGetActiveLayoutName(dynamic doc)
+    {
+        try
+        {
+            return Convert.ToString(doc.ActiveLayout.Name);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static int? TryGetVariableInt(dynamic doc, string variable)
+    {
+        try
+        {
+            var raw = doc.GetVariable(variable);
+            if (raw is int i)
+            {
+                return i;
+            }
+
+            var rawText = Convert.ToString(raw);
+            if (int.TryParse(rawText, out int parsed))
+            {
+                return parsed;
+            }
+        }
+        catch
+        {
+            // best-effort only
+        }
+
+        return null;
+    }
+
+    private static void SetVariableIfPossible(dynamic doc, string variable, int value, Action<LogEntry> log)
+    {
+        try
+        {
+            doc.SetVariable(variable, value);
+        }
+        catch (Exception ex)
+        {
+            log(Error($"Unable to set {variable}={value}: {ex.Message}"));
         }
     }
 
@@ -464,4 +756,6 @@ public sealed class AutoCadBatchService
         Message = message,
         Level = LogLevel.Error
     };
+
+    private sealed record OpenedDocument(dynamic Document, IReadOnlyList<string> PaperSpaceLayouts);
 }
