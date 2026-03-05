@@ -39,4 +39,4 @@ Release index:
 - `dist/index.json`
 
 Latest issued UI app:
-- `dist/rev-XXXX_YYYYMMDD-HHMMSS/DwgAutoPrinter.App.exe`
+- `dist/rev-XXXX/DwgAutoPrinter.App.exe`

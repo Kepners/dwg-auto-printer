@@ -19,15 +19,15 @@ New-Item -ItemType Directory -Path $distRoot -Force | Out-Null
 
 $existingReleaseDirs = @()
 $existingReleaseDirs += Get-ChildItem -Path $distRoot -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -match '^rev-(\d{4})_' }
+    Where-Object { $_.Name -match '^rev-(\d{4})(?:_.*)?$' }
 if (Test-Path $legacyRoot) {
     $existingReleaseDirs += Get-ChildItem -Path $legacyRoot -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^rev-(\d{4})_' }
+        Where-Object { $_.Name -match '^rev-(\d{4})(?:_.*)?$' }
 }
 
 $maxRevision = 0
 foreach ($dir in $existingReleaseDirs) {
-    $match = [regex]::Match($dir.Name, '^rev-(\d{4})_')
+    $match = [regex]::Match($dir.Name, '^rev-(\d{4})(?:_.*)?$')
     if ($match.Success) {
         $value = [int]$match.Groups[1].Value
         if ($value -gt $maxRevision) {
@@ -38,8 +38,7 @@ foreach ($dir in $existingReleaseDirs) {
 
 $nextRevision = $maxRevision + 1
 $revisionLabel = ("{0:D4}" -f $nextRevision)
-$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$releaseName = "rev-$revisionLabel" + "_" + $timestamp
+$releaseName = "rev-$revisionLabel"
 $releasePath = Join-Path $distRoot $releaseName
 
 Write-Host "Publishing revision $revisionLabel to $releasePath"

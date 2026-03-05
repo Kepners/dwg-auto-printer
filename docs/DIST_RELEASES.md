@@ -18,9 +18,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish-dist.ps1 -Runtime win
 
 ## Output structure
 
-- `dist/rev-0001_YYYYMMDD-HHMMSS/`
+- `dist/rev-0001/`
   - `DwgAutoPrinter.App.exe`
   - `smart-revision-update.lsp`
 - `dist/index.json`
 
-Each run creates a new `rev-XXXX_...` folder so every revision is kept.
+Each run creates a new `rev-XXXX` folder so every revision is kept.
