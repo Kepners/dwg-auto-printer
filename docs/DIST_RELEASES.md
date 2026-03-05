@@ -1,6 +1,6 @@
 # Dist Releases
 
-All issue builds go to `dist` and are never overwritten.
+All issue builds go to `dist` root.
 
 ## Create a new revision
 
@@ -18,9 +18,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\publish-dist.ps1 -Runtime win
 
 ## Output structure
 
-- `dist/rev-0001/`
-  - `DwgAutoPrinter.App.exe`
-  - `smart-revision-update.lsp`
+- Latest (always overwritten in root):
+  - `dist/DwgAutoPrinter.App.exe`
+  - `dist/smart-revision-update.lsp`
+- Revision snapshots (no folders):
+  - `dist/DwgAutoPrinter.App.rev-0001.exe`
+  - `dist/smart-revision-update.rev-0001.lsp`
 - `dist/index.json`
 
-Each run creates a new `rev-XXXX` folder so every revision is kept.
+Each run creates new revisioned files in root (`.rev-XXXX`) so every revision is kept without revision folders.
