@@ -232,10 +232,44 @@ public sealed class AutoCadBatchService
             var doc = TryOpen(path, log, cancellationToken);
             if (doc is not null)
             {
-                openedDocs.Add(doc);
+                var paperSpaceCount = GetPaperSpaceLayoutCount(doc);
+
+                if (paperSpaceCount > 3)
+                {
+                    if (openedDocs.Count > 0)
+                    {
+                        ProcessLoadedDocs(openedDocs, options, log, cancellationToken);
+                        openedDocs.Clear();
+                    }
+
+                    log(Info($"Single-DWG mode: {doc.Name} has {paperSpaceCount} paper space layouts (>3)."));
+                    ProcessDocument(doc, options, log, cancellationToken);
+                    if (options.CloseAfterProcess)
+                    {
+                        TryClose(doc, log, cancellationToken);
+                    }
+                }
+                else
+                {
+                    openedDocs.Add(doc);
+                    if (openedDocs.Count >= options.BatchSize)
+                    {
+                        ProcessLoadedDocs(openedDocs, options, log, cancellationToken);
+                        openedDocs.Clear();
+                    }
+                }
             }
         }
 
+        ProcessLoadedDocs(openedDocs, options, log, cancellationToken);
+    }
+
+    private void ProcessLoadedDocs(
+        List<dynamic> openedDocs,
+        RunOptions options,
+        Action<LogEntry> log,
+        CancellationToken cancellationToken)
+    {
         foreach (dynamic doc in openedDocs)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -267,6 +301,28 @@ public sealed class AutoCadBatchService
         {
             log(Error($"Failed to open {path}: {ex.Message}"));
             return null;
+        }
+    }
+
+    private int GetPaperSpaceLayoutCount(dynamic doc)
+    {
+        try
+        {
+            int count = 0;
+            foreach (dynamic layout in doc.Layouts)
+            {
+                string name = (string)layout.Name;
+                if (!string.Equals(name, "Model", StringComparison.OrdinalIgnoreCase))
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+        catch
+        {
+            return 0;
         }
     }
 
