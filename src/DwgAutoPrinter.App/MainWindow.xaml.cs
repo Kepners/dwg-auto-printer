@@ -49,6 +49,11 @@ public partial class MainWindow : Window
 
     private void RevisionModeComboBox_OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (ExactRevisionTextBox is null)
+        {
+            return;
+        }
+
         var mode = GetRevisionMode();
         ExactRevisionTextBox.IsEnabled = string.Equals(mode, "EXACT", StringComparison.OrdinalIgnoreCase);
     }
