@@ -11,6 +11,9 @@
       "activityBar.foreground": "#1976D2",
       "statusBar.background": "#E2231A",
       "statusBar.foreground": "#FFFFFF"
+    },
+    "files.exclude": {
+      ".claude/settings.local.json": true
     }
   }
 }

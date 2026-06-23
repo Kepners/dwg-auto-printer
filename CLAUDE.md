@@ -66,4 +66,20 @@ DWGAutoPrinter solves this: drop DWG files in, configure once, print all.
 
 ---
 
+---
+
+## Git & Deploy Workflow
+
+**Branch:** `master` (single branch — dev and deploy are the same)
+
+```bash
+git add <files>
+git commit -m "🔥 feat/fix: description"
+git push origin master
+```
+
+Never push to a different branch expecting the live site/build to update.
+
+---
+
 *Created: 2026-03-04*
